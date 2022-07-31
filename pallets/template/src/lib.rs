@@ -32,11 +32,13 @@ pub mod pallet {
 		TokensSwapped(T::AccountId, u64, u128, u128),
 
 		PriceSet(AssetIdOf<T>, BalanceOf<T>, T::BlockNumber),
+		PriceOraclePermissionSet(T::AccountId, bool),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
 		AddLiquidityFailed,
 		InsufficientBalance,
+		NotAuthorized,
 	}
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -46,6 +48,11 @@ pub mod pallet {
 	#[pallet::unbounded]
 	pub(super) type Price<T: Config> =
 		StorageMap<_, Twox128, AssetIdOf<T>, (BalanceOf<T>, T::BlockNumber), OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::unbounded]
+	pub(super) type PriceOracle<T: Config> =
+		StorageMap<_, Twox128, T::AccountId, bool, OptionQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -80,18 +87,28 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		pub fn authorize_pricing_oracle(
+			origin: OriginFor<T>,
+			who: T::AccountId,
+			is_permissioned: bool,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			PriceOracle::<T>::insert(&who, is_permissioned);
+			Self::deposit_event(Event::PriceOraclePermissionSet(who, is_permissioned));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		pub fn set_price(
 			origin: OriginFor<T>,
 			asset_id: AssetIdOf<T>,
 			price: BalanceOf<T>,
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-			// TODO: ensure caller is whitelisted
+			let sender = ensure_signed(origin)?;
+			ensure!(PriceOracle::<T>::get(&sender).is_some(), Error::<T>::NotAuthorized);
 
 			let current_block = <frame_system::Pallet<T>>::block_number();
-
 			Price::<T>::insert(asset_id, (price, current_block));
-
 			Self::deposit_event(Event::PriceSet(asset_id, price, current_block));
 
 			Ok(())
