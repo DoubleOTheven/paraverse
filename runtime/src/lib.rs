@@ -300,13 +300,13 @@ impl pallet_sudo::Config for Runtime {
 }
 
 parameter_types! {
-	pub const TradePot: PalletId = PalletId(*b"para/pot");
+	pub const DexPot: PalletId = PalletId(*b"para/pot");
 }
 
 impl pallet_template::Config for Runtime {
 	type Event = Event;
 	type Assets = Assets;
-	type PalletId = TradePot;
+	type PalletId = DexPot;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -324,7 +324,7 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
-		TradePools: pallet_template,
+		Dex: pallet_template,
 		Nicks: pallet_nicks,
 		Assets: pallet_assets,
 	}
