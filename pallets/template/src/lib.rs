@@ -4,6 +4,8 @@ pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use core::ops::Div;
+
 	use frame_support::{
 		pallet_prelude::*,
 		sp_runtime::traits::AccountIdConversion,
@@ -121,6 +123,34 @@ pub mod pallet {
 
 			Self::deposit_event(Event::LPTokensMinted(sender.clone(), lp, lp_share));
 			Self::deposit_event(Event::LiquidityProvided(sender.clone(), lp, amount_a, amount_b));
+
+			Ok(())
+		}
+
+		#[pallet::weight(1_000)]
+		pub fn claim_liquidity(
+			origin: OriginFor<T>,
+			pool_id: u64,
+			lp_amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let result = Pools::<T>::get(pool_id);
+			ensure!(result.is_some(), Error::<T>::DexNotFound);
+
+			let (asset_a, asset_b, lp) = result.unwrap();
+			let lp_bal = T::Assets::balance(lp, &sender);
+			ensure!(lp_bal >= lp_amount, Error::<T>::InsufficientBalance);
+
+			// TODO calculate shares accurately
+			let amount_a = &lp_amount.div(2u32.into());
+			// let amount_a = T::Assets::div(lp_amount, 2);
+			let amount_b = amount_a;
+
+			T::Assets::burn_from(lp, &sender, lp_amount)?;
+			T::Assets::transfer(asset_a, &Self::account_id(), &sender, *amount_a, true)?;
+			T::Assets::transfer(asset_b, &Self::account_id(), &sender, *amount_b, true)?;
+
+			Self::deposit_event(Event::LiquitdityClaimed(sender.clone(), lp, lp_amount));
 
 			Ok(())
 		}
