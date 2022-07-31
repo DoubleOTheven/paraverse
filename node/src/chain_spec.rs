@@ -1,6 +1,6 @@
 use node_template_runtime::{
-	AccountId, AssetsConfig, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature,
-	SudoConfig, SystemConfig, WASM_BINARY,
+	AccountId, AssetsConfig, AuraConfig, BalancesConfig, DexConfig, GenesisConfig, GrandpaConfig,
+	Signature, SudoConfig, SystemConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -184,5 +184,6 @@ fn testnet_genesis(
 				accounts,
 			}
 		},
+		dex: { DexConfig { prices: vec![(1u64, 500u128), (2u64, 700u128)] } },
 	}
 }

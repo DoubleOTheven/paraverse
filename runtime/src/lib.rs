@@ -305,7 +305,7 @@ parameter_types! {
 
 impl pallet_template::Config for Runtime {
 	type Event = Event;
-	type Assets = Assets;
+	// type Assets = Assets;
 	type PalletId = DexPot;
 }
 
