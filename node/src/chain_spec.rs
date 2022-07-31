@@ -144,7 +144,10 @@ fn testnet_genesis(
 		.map(|acc| (2u64, acc.clone(), 1_000_000_000_000_000_000_000u128))
 		.collect::<Vec<_>>();
 
+	let mut lp_tokens = vec![(3u64, alice.clone(), 0)];
+
 	accounts.append(&mut second_accounts);
+	accounts.append(&mut lp_tokens);
 
 	GenesisConfig {
 		system: SystemConfig {
@@ -168,10 +171,15 @@ fn testnet_genesis(
 		transaction_payment: Default::default(),
 		assets: {
 			AssetsConfig {
-				assets: vec![(1u64, alice.clone(), true, 500), (2u64, alice.clone(), true, 500)],
+				assets: vec![
+					(1u64, alice.clone(), true, 500),
+					(2u64, alice.clone(), true, 500),
+					(3u64, alice.clone(), true, 1),
+				],
 				metadata: vec![
 					(1u64, b"PIPS".to_vec(), b"PIPS".to_vec(), 12u8),
 					(2u64, b"WOW".to_vec(), b"WOW".to_vec(), 12u8),
+					(3u64, b"LPOWS".to_vec(), b"LPOWS".to_vec(), 12u8),
 				],
 				accounts,
 			}
