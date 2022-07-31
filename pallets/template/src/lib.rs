@@ -185,19 +185,28 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config> {
+	pub struct GenesisConfig<T: Config>
+	where
+		AssetIdOf<T>: MaybeSerializeDeserialize,
+	{
 		pub prices: Vec<(AssetIdOf<T>, BalanceOf<T>)>,
 	}
 
 	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
+	impl<T: Config> Default for GenesisConfig<T>
+	where
+		AssetIdOf<T>: MaybeSerializeDeserialize,
+	{
 		fn default() -> Self {
 			Self { prices: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T>
+	where
+		AssetIdOf<T>: MaybeSerializeDeserialize,
+	{
 		fn build(&self) {
 			for (asset_id, price) in &self.prices {
 				Price::<T>::insert(asset_id, price);
