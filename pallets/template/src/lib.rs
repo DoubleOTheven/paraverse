@@ -36,12 +36,14 @@ pub mod pallet {
 		TokensSwapped(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>),
 		PriceSet(AssetIdOf<T>, BalanceOf<T>, T::BlockNumber),
 		PriceOraclePermissionSet(T::AccountId, bool),
+		PoolCreated(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
 		AddLiquidityFailed,
 		InsufficientBalance,
 		NotAuthorized,
+		PoolExists,
 		DexNotFound,
 		UnequalPair,
 	}
@@ -164,6 +166,24 @@ pub mod pallet {
 			ensure_root(origin)?;
 			PriceOracle::<T>::insert(&who, is_permissioned);
 			Self::deposit_event(Event::PriceOraclePermissionSet(who, is_permissioned));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn create_pool(
+			origin: OriginFor<T>,
+			pool_id: u64,
+			asset_a_id: AssetIdOf<T>,
+			asset_b_id: AssetIdOf<T>,
+			lp_id: AssetIdOf<T>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let pool = Pools::<T>::get(pool_id);
+			ensure!(pool.is_none(), Error::<T>::PoolExists);
+
+			Pools::<T>::insert(pool_id, (asset_a_id, asset_b_id, lp_id));
+			Self::deposit_event(Event::PoolCreated(asset_a_id, asset_b_id, lp_id));
+
 			Ok(())
 		}
 

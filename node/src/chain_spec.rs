@@ -146,8 +146,19 @@ fn testnet_genesis(
 
 	let mut lp_tokens = vec![(3u64, alice.clone(), 0)];
 
+	let mut fortnite_token = endowed_accounts
+		.iter()
+		.map(|acc| (4u64, acc.clone(), 1_000_000_000_000_000_000_000u128))
+		.collect::<Vec<_>>();
+
+	let mut fort_wow_lp_token = vec![(5u64, alice.clone(), 0)];
+	let mut lp_pow_lp_fow = vec![(6u64, alice.clone(), 0)];
+
 	accounts.append(&mut second_accounts);
 	accounts.append(&mut lp_tokens);
+	accounts.append(&mut fortnite_token);
+	accounts.append(&mut fort_wow_lp_token);
+	accounts.append(&mut lp_pow_lp_fow);
 
 	GenesisConfig {
 		system: SystemConfig {
@@ -174,12 +185,18 @@ fn testnet_genesis(
 				assets: vec![
 					(1u64, alice.clone(), true, 500),
 					(2u64, alice.clone(), true, 500),
-					(3u64, alice.clone(), true, 1),
+					(3u64, alice.clone(), true, 500),
+					(4u64, alice.clone(), true, 500),
+					(5u64, alice.clone(), true, 500),
+					(6u64, alice.clone(), true, 500),
 				],
 				metadata: vec![
 					(1u64, b"PIPS".to_vec(), b"PIPS".to_vec(), 12u8),
 					(2u64, b"WOW".to_vec(), b"WOW".to_vec(), 12u8),
-					(3u64, b"LPOWS".to_vec(), b"LPOWS".to_vec(), 12u8),
+					(3u64, b"LP_PW".to_vec(), b"LP_PW".to_vec(), 12u8),
+					(4u64, b"FORT".to_vec(), b"FORT".to_vec(), 12u8),
+					(5u64, b"LP_FW".to_vec(), b"LP_FW".to_vec(), 12u8),
+					(6u64, b"LLP".to_vec(), b"LLP".to_vec(), 12u8),
 				],
 				accounts,
 			}
