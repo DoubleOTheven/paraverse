@@ -1,9 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+mod dex_pricer;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::dex_pricer::DexPricer;
 	use core::ops::Div;
 
 	use frame_support::{
@@ -68,8 +70,8 @@ pub mod pallet {
 	pub(super) type Pools<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		u64,
-		(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>),
+		AssetIdOf<T>,
+		(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>, BalanceOf<T>),
 		OptionQuery,
 	>;
 
@@ -95,7 +97,7 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		pub fn add_liquidity(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pool_id: AssetIdOf<T>,
 			amount_a: BalanceOf<T>,
 			amount_b: BalanceOf<T>,
 		) -> DispatchResult {
@@ -103,7 +105,7 @@ pub mod pallet {
 			let result = Pools::<T>::get(pool_id);
 			ensure!(result.is_some(), Error::<T>::DexNotFound);
 
-			let (asset_a, asset_b, lp) = result.unwrap();
+			let (asset_a, asset_b, lp, _) = result.unwrap();
 			let first_bal = T::Assets::balance(asset_a, &sender);
 			let second_bal = T::Assets::balance(asset_b, &sender);
 			ensure!(
@@ -132,14 +134,14 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		pub fn claim_liquidity(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pool_id: AssetIdOf<T>,
 			lp_amount: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let result = Pools::<T>::get(pool_id);
 			ensure!(result.is_some(), Error::<T>::DexNotFound);
 
-			let (asset_a, asset_b, lp) = result.unwrap();
+			let (asset_a, asset_b, lp, _) = result.unwrap();
 			let lp_bal = T::Assets::balance(lp, &sender);
 			ensure!(lp_bal >= lp_amount, Error::<T>::InsufficientBalance);
 
@@ -172,17 +174,38 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn create_pool(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pool_id: AssetIdOf<T>,
 			asset_a_id: AssetIdOf<T>,
 			asset_b_id: AssetIdOf<T>,
+			contribution_a: BalanceOf<T>,
+			contribution_b: BalanceOf<T>,
 			lp_id: AssetIdOf<T>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			ensure_root(origin.clone())?;
+			let admin = ensure_signed(origin)?;
 			let pool = Pools::<T>::get(pool_id);
 			ensure!(pool.is_none(), Error::<T>::PoolExists);
 
-			Pools::<T>::insert(pool_id, (asset_a_id, asset_b_id, lp_id));
+			let bal_a = T::Assets::balance(asset_a_id, &admin);
+			let bal_b = T::Assets::balance(asset_b_id, &admin);
+			ensure!(contribution_a <= bal_a, Error::<T>::InsufficientBalance);
+			ensure!(contribution_b <= bal_b, Error::<T>::InsufficientBalance);
+
+			let (lp_amount, constant_k) =
+				DexPricer::initial_pool_values(contribution_a, contribution_b);
+
+			T::Assets::transfer(asset_a_id, &admin, &Self::account_id(), contribution_a, false)?;
+			T::Assets::transfer(asset_b_id, &admin, &Self::account_id(), contribution_b, false)?;
+			T::Assets::mint_into(lp_id, &admin, lp_amount)?;
+
+			Pools::<T>::insert(pool_id, (asset_a_id, asset_b_id, lp_id, constant_k));
 			Self::deposit_event(Event::PoolCreated(asset_a_id, asset_b_id, lp_id));
+			Self::deposit_event(Event::LiquidityProvided(
+				admin.clone(),
+				pool_id,
+				contribution_a,
+				contribution_b,
+			));
 
 			Ok(())
 		}
