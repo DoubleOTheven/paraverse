@@ -192,15 +192,15 @@ pub mod pallet {
 	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			Self { prices: Vec::new() }
+			Self { prices: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> for GenesisConfig<T> {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
-			for p in self.prices.iter().chain(self.fellows.iter()).chain(self.allies.iter()) {
-				assert!(Pallet::<T, I>::has_identity(p).is_ok(), "Member does not set identity!");
+			for (asset_id, price) in &self.prices {
+				Price::<T>::insert(asset_id, price);
 			}
 		}
 	}

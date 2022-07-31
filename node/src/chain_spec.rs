@@ -184,5 +184,6 @@ fn testnet_genesis(
 				accounts,
 			}
 		},
+		dex: { DexConfig { prices: vex![(1u64, 500), (2u64, 700)] } },
 	}
 }
