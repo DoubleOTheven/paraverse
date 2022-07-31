@@ -6,22 +6,29 @@ pub use pallet::*;
 pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
+		sp_runtime::traits::AccountIdConversion,
 		traits::fungibles::{Inspect, Transfer},
+		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 
 	type AssetIdOf<T: Config> = <T::Assets as Inspect<T::AccountId>>::AssetId;
-	// type BalanceOf<T: Config> = <T::Assets as Inspect<T::AccountId>>::Balance;
+	type BalanceOf<T: Config> = <T::Assets as Inspect<T::AccountId>>::Balance;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Assets: Inspect<Self::AccountId> + Transfer<Self::AccountId>;
+		#[pallet::constant]
+		type PalletId: Get<PalletId>;
 	}
 
 	#[pallet::event]
 	pub enum Event<T: Config> {
 		LiquidityProvided(T::AccountId, u64, u128, u128),
+		LPTokensMinted(T::AccountId, u64, u128),
+		LPTokensBurnt(T::AccountId, u64, u128),
+		TokensSwapped(T::AccountId, u64, u128, u128),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -40,6 +47,20 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
+	impl<T: Config> Pallet<T> {
+		/// The account ID of the pot for all trade pairs
+		/// This actually does computation. If you need to keep using it, then make sure you cache
+		/// the value and only call this once.
+		pub fn account_id() -> T::AccountId {
+			T::PalletId::get().into_account_truncating()
+		}
+
+		/// Return the amount of money in the pot for an asset
+		pub fn pot(asset_id: AssetIdOf<T>) -> BalanceOf<T> {
+			T::Assets::balance(asset_id, &Self::account_id())
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(1_000)]
@@ -49,10 +70,8 @@ pub mod pallet {
 			// amountA: u128,
 			// amountB: u128,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			let _bal = T::Assets::balance(asset_a, &sender);
-			// let current_block = <frame_system::Pallet<T>>::block_number();
+			let _sender = ensure_signed(origin)?;
+			let _bal = Self::pot(asset_a);
 
 			Ok(())
 		}

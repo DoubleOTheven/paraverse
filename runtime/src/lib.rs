@@ -6,6 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use frame_support::PalletId;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -298,10 +299,14 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/// Configure the pallet-template in pallets/template.
+parameter_types! {
+	pub const TradePot: PalletId = PalletId(*b"para/pot");
+}
+
 impl pallet_template::Config for Runtime {
 	type Event = Event;
 	type Assets = Assets;
+	type PalletId = TradePot;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -319,7 +324,7 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
-		TemplateModule: pallet_template,
+		TradePools: pallet_template,
 		Nicks: pallet_nicks,
 		Assets: pallet_assets,
 	}
