@@ -119,8 +119,8 @@ pub mod pallet {
 			// TODO Calculate LP Share accurately
 			let lp_share = amount_a + amount_b;
 
-			T::Assets::transfer(asset_a, &sender, &Self::account_id(), amount_a, true)?;
-			T::Assets::transfer(asset_b, &sender, &Self::account_id(), amount_b, true)?;
+			T::Assets::transfer(asset_a, &sender, &Self::account_id(), amount_a, false)?;
+			T::Assets::transfer(asset_b, &sender, &Self::account_id(), amount_b, false)?;
 			T::Assets::mint_into(lp, &sender, lp_share)?;
 
 			Self::deposit_event(Event::LPTokensMinted(sender.clone(), lp, lp_share));
@@ -149,8 +149,8 @@ pub mod pallet {
 			let amount_b = amount_a;
 
 			T::Assets::burn_from(lp, &sender, lp_amount)?;
-			T::Assets::transfer(asset_a, &Self::account_id(), &sender, *amount_a, true)?;
-			T::Assets::transfer(asset_b, &Self::account_id(), &sender, *amount_b, true)?;
+			T::Assets::transfer(asset_a, &Self::account_id(), &sender, *amount_a, false)?;
+			T::Assets::transfer(asset_b, &Self::account_id(), &sender, *amount_b, false)?;
 
 			Self::deposit_event(Event::LiquitdityClaimed(sender.clone(), lp, lp_amount));
 
