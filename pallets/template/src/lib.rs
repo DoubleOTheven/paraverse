@@ -24,11 +24,14 @@ pub mod pallet {
 	}
 
 	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		LiquidityProvided(T::AccountId, u64, u128, u128),
 		LPTokensMinted(T::AccountId, u64, u128),
 		LPTokensBurnt(T::AccountId, u64, u128),
 		TokensSwapped(T::AccountId, u64, u128, u128),
+
+		PriceSet(AssetIdOf<T>, BalanceOf<T>, T::BlockNumber),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -40,9 +43,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::storage]
-	// #[pallet::unbounded]
-	pub(super) type Trades<T: Config> =
-		StorageMap<_, Blake2_128Concat, u128, (T::AccountId, T::BlockNumber), OptionQuery>;
+	#[pallet::unbounded]
+	pub(super) type Price<T: Config> =
+		StorageMap<_, Twox128, AssetIdOf<T>, (BalanceOf<T>, T::BlockNumber), OptionQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -72,6 +75,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
 			let _bal = Self::pot(asset_a);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_price(
+			origin: OriginFor<T>,
+			asset_id: AssetIdOf<T>,
+			price: BalanceOf<T>,
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+			// TODO: ensure caller is whitelisted
+
+			let current_block = <frame_system::Pallet<T>>::block_number();
+
+			Price::<T>::insert(asset_id, (price, current_block));
+
+			Self::deposit_event(Event::PriceSet(asset_id, price, current_block));
 
 			Ok(())
 		}
