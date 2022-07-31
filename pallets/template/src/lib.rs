@@ -7,7 +7,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		sp_runtime::traits::AccountIdConversion,
-		traits::fungibles::{Inspect, Transfer},
+		traits::fungibles::{Inspect, Mutate, Transfer},
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
@@ -18,7 +18,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type Assets: Inspect<Self::AccountId> + Transfer<Self::AccountId>;
+		type Assets: Inspect<Self::AccountId> + Transfer<Self::AccountId> + Mutate<Self::AccountId>;
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 	}
@@ -26,11 +26,12 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		LiquidityProvided(T::AccountId, u64, u128, u128),
-		LPTokensMinted(T::AccountId, u64, u128),
-		LPTokensBurnt(T::AccountId, u64, u128),
-		TokensSwapped(T::AccountId, u64, u128, u128),
-
+		LiquidityProvided(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>),
+		LPTokensMinted(T::AccountId, AssetIdOf<T>, BalanceOf<T>),
+		// LP, pool ID, amount
+		LiquitdityClaimed(T::AccountId, AssetIdOf<T>, BalanceOf<T>),
+		// Caller, pool ID, amount A, amount B
+		TokensSwapped(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>),
 		PriceSet(AssetIdOf<T>, BalanceOf<T>, T::BlockNumber),
 		PriceOraclePermissionSet(T::AccountId, bool),
 	}
@@ -39,6 +40,8 @@ pub mod pallet {
 		AddLiquidityFailed,
 		InsufficientBalance,
 		NotAuthorized,
+		DexNotFound,
+		UnequalPair,
 	}
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -53,6 +56,18 @@ pub mod pallet {
 	#[pallet::unbounded]
 	pub(super) type PriceOracle<T: Config> =
 		StorageMap<_, Twox128, T::AccountId, bool, OptionQuery>;
+
+	// Use Blake hasher bc/ I plan to allow anyone to create a DEX in the future
+	// Key is the Pool ID in u64, then a tuple of (asset A ID, asset B ID, LP Token ID)
+	#[pallet::storage]
+	#[pallet::unbounded]
+	pub(super) type Pools<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		u64,
+		(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>),
+		OptionQuery,
+	>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -76,12 +91,36 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		pub fn add_liquidity(
 			origin: OriginFor<T>,
-			asset_a: AssetIdOf<T>,
-			// amountA: u128,
-			// amountB: u128,
+			pool_id: u64,
+			amount_a: BalanceOf<T>,
+			amount_b: BalanceOf<T>,
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-			let _bal = Self::pot(asset_a);
+			let sender = ensure_signed(origin)?;
+			let result = Pools::<T>::get(pool_id);
+			ensure!(result.is_some(), Error::<T>::DexNotFound);
+
+			let (asset_a, asset_b, lp) = result.unwrap();
+			let first_bal = T::Assets::balance(asset_a, &sender);
+			let second_bal = T::Assets::balance(asset_b, &sender);
+			ensure!(
+				amount_a <= first_bal && amount_b <= second_bal,
+				Error::<T>::InsufficientBalance,
+			);
+
+			let (price_a, _) = Price::<T>::get(asset_a).unwrap_or_default();
+			let (price_b, _) = Price::<T>::get(asset_b).unwrap_or_default();
+
+			ensure!(amount_a * price_a == amount_b * price_b, Error::<T>::UnequalPair);
+
+			// TODO Calculate LP Share accurately
+			let lp_share = amount_a + amount_b;
+
+			T::Assets::transfer(asset_a, &sender, &Self::account_id(), amount_a, true)?;
+			T::Assets::transfer(asset_b, &sender, &Self::account_id(), amount_b, true)?;
+			T::Assets::mint_into(lp, &sender, lp_share)?;
+
+			Self::deposit_event(Event::LPTokensMinted(sender.clone(), lp, lp_share));
+			Self::deposit_event(Event::LiquidityProvided(sender.clone(), lp, amount_a, amount_b));
 
 			Ok(())
 		}
