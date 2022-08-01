@@ -5,8 +5,7 @@ mod dex_pricer;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::dex_pricer::DexPricer;
-	use core::ops::Div;
+	use crate::dex_pricer::{DexPricer, TokenPair};
 
 	use frame_support::{
 		pallet_prelude::*,
@@ -23,6 +22,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Assets: Inspect<Self::AccountId> + Transfer<Self::AccountId> + Mutate<Self::AccountId>;
+
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 	}
@@ -30,14 +30,19 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		// (who, lp token ID, A contribution, B contribution)
 		LiquidityProvided(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>),
+		// (who, lp token ID, amount)
 		LPTokensMinted(T::AccountId, AssetIdOf<T>, BalanceOf<T>),
-		// LP, pool ID, amount
+		// (LP, pool ID, amount)
 		LiquitdityClaimed(T::AccountId, AssetIdOf<T>, BalanceOf<T>),
-		// Caller, pool ID, amount A, amount B
+		// (Caller, pool ID, amount A, amount B)
 		TokensSwapped(T::AccountId, AssetIdOf<T>, BalanceOf<T>, BalanceOf<T>),
+		// (token ID, price, block)
 		PriceSet(AssetIdOf<T>, BalanceOf<T>, T::BlockNumber),
+		// (account, has_permission)
 		PriceOraclePermissionSet(T::AccountId, bool),
+		// (pool ID, asset A ID, asset B ID)
 		PoolCreated(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>),
 	}
 	#[pallet::error]
@@ -82,96 +87,141 @@ pub mod pallet {
 		/// The account ID of the pot for all trade pairs
 		/// This actually does computation. If you need to keep using it, then make sure you cache
 		/// the value and only call this once.
-		pub fn account_id() -> T::AccountId {
+		fn account_id() -> T::AccountId {
 			T::PalletId::get().into_account_truncating()
 		}
 
 		/// Return the amount of money in the pot for an asset
-		pub fn pot(asset_id: AssetIdOf<T>) -> BalanceOf<T> {
+		fn pot(asset_id: AssetIdOf<T>) -> BalanceOf<T> {
 			T::Assets::balance(asset_id, &Self::account_id())
+		}
+
+		fn take_from_pot(
+			asset_id: AssetIdOf<T>,
+			receiver: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> Result<BalanceOf<T>, DispatchError> {
+			T::Assets::transfer(asset_id, &Self::account_id(), receiver, amount, false)
+		}
+
+		fn add_to_pot(
+			asset_id: AssetIdOf<T>,
+			from: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> Result<BalanceOf<T>, DispatchError> {
+			T::Assets::transfer(asset_id, &Self::account_id(), &from, amount, false)
+		}
+
+		fn mint(
+			asset_id: AssetIdOf<T>,
+			receiver: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			T::Assets::mint_into(asset_id, receiver, amount)
+		}
+
+		fn burn(
+			asset_id: AssetIdOf<T>,
+			holder: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> Result<BalanceOf<T>, DispatchError> {
+			T::Assets::burn_from(asset_id, holder, amount)
 		}
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1_000)]
+		#[pallet::weight(1_000_000)]
 		pub fn add_liquidity(
 			origin: OriginFor<T>,
 			pool_id: AssetIdOf<T>,
-			amount_a: BalanceOf<T>,
-			amount_b: BalanceOf<T>,
+			contribution_a: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let result = Pools::<T>::get(pool_id);
 			ensure!(result.is_some(), Error::<T>::DexNotFound);
 
+			// Get the token IDs for the pool
 			let (asset_a, asset_b, lp, _) = result.unwrap();
-			let first_bal = T::Assets::balance(asset_a, &sender);
-			let second_bal = T::Assets::balance(asset_b, &sender);
+
+			// Calculate the current price of Asset A and Asset B
+			let total_a = Self::pot(asset_a);
+			let total_b = Self::pot(asset_b);
+			let price_of_a = DexPricer::token_price(TokenPair::A, total_a, total_b);
+			let price_of_b = DexPricer::token_price(TokenPair::B, total_a, total_b);
+
+			// Calculate B amount for Asset A contribution. A/B contributions must be equal value
+			let equal_amount_b = (contribution_a * price_of_a) / price_of_b;
+			let asset_a_balance = T::Assets::balance(asset_a, &sender);
+			let asset_b_balance = T::Assets::balance(asset_b, &sender);
 			ensure!(
-				amount_a <= first_bal && amount_b <= second_bal,
+				contribution_a <= asset_a_balance && equal_amount_b <= asset_b_balance,
 				Error::<T>::InsufficientBalance,
 			);
 
-			let (price_a, _) = Price::<T>::get(asset_a).unwrap_or_default();
-			let (price_b, _) = Price::<T>::get(asset_b).unwrap_or_default();
+			// Calculate LP tokens
+			let total_lp = Self::pot(lp);
+			let contribution_lp_amount =
+				DexPricer::to_contribution_lp_amount(contribution_a, total_lp, total_a);
 
-			ensure!(amount_a * price_a == amount_b * price_b, Error::<T>::UnequalPair);
+			// Transfer funds
+			Self::add_to_pot(asset_a, &sender, contribution_a)?;
+			Self::add_to_pot(asset_a, &sender, equal_amount_b)?;
+			Self::mint(lp, &sender, contribution_lp_amount)?;
 
-			// TODO Calculate LP Share accurately
-			let lp_share = amount_a + amount_b;
-
-			T::Assets::transfer(asset_a, &sender, &Self::account_id(), amount_a, false)?;
-			T::Assets::transfer(asset_b, &sender, &Self::account_id(), amount_b, false)?;
-			T::Assets::mint_into(lp, &sender, lp_share)?;
-
-			Self::deposit_event(Event::LPTokensMinted(sender.clone(), lp, lp_share));
-			Self::deposit_event(Event::LiquidityProvided(sender.clone(), lp, amount_a, amount_b));
+			Self::deposit_event(Event::LPTokensMinted(sender.clone(), lp, contribution_lp_amount));
+			Self::deposit_event(Event::LiquidityProvided(
+				sender.clone(),
+				pool_id,
+				contribution_a,
+				equal_amount_b,
+			));
 
 			Ok(())
 		}
 
-		#[pallet::weight(1_000)]
+		#[pallet::weight(1_000_000)]
 		pub fn claim_liquidity(
 			origin: OriginFor<T>,
 			pool_id: AssetIdOf<T>,
-			lp_amount: BalanceOf<T>,
+			lp_claim: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let result = Pools::<T>::get(pool_id);
 			ensure!(result.is_some(), Error::<T>::DexNotFound);
 
 			let (asset_a, asset_b, lp, _) = result.unwrap();
-			let lp_bal = T::Assets::balance(lp, &sender);
-			ensure!(lp_bal >= lp_amount, Error::<T>::InsufficientBalance);
+			let lp_balance = T::Assets::balance(lp, &sender);
+			ensure!(lp_claim <= lp_balance, Error::<T>::InsufficientBalance);
 
-			// TODO calculate shares accurately
-			let amount_a = &lp_amount.div(2u32.into());
-			// let amount_a = T::Assets::div(lp_amount, 2);
-			let amount_b = amount_a;
+			// Calculate asset A and B shares from LP tokens
+			let total_lp = Self::pot(lp);
+			let total_a = Self::pot(asset_a);
+			let total_b = Self::pot(asset_b);
+			let (amount_a, amount_b) = DexPricer::from_lp(&lp_claim, &total_a, &total_b, &total_lp);
 
-			T::Assets::burn_from(lp, &sender, lp_amount)?;
-			T::Assets::transfer(asset_a, &Self::account_id(), &sender, *amount_a, false)?;
-			T::Assets::transfer(asset_b, &Self::account_id(), &sender, *amount_b, false)?;
+			Self::burn(lp, &sender, lp_claim)?;
+			Self::take_from_pot(asset_a, &sender, amount_a)?;
+			Self::take_from_pot(asset_a, &sender, amount_b)?;
 
-			Self::deposit_event(Event::LiquitdityClaimed(sender.clone(), lp, lp_amount));
+			Self::deposit_event(Event::LiquitdityClaimed(sender.clone(), lp, lp_claim));
 
 			Ok(())
 		}
 
-		#[pallet::weight(0)]
+		#[pallet::weight((1_000_000, Pays::Yes))]
 		pub fn authorize_pricing_oracle(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			is_permissioned: bool,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
 			PriceOracle::<T>::insert(&who, is_permissioned);
 			Self::deposit_event(Event::PriceOraclePermissionSet(who, is_permissioned));
-			Ok(())
+			Ok(Pays::No.into())
 		}
 
-		#[pallet::weight(0)]
+		#[pallet::weight((1_000_000, Pays::Yes))]
 		pub fn create_pool(
 			origin: OriginFor<T>,
 			pool_id: AssetIdOf<T>,
@@ -180,7 +230,7 @@ pub mod pallet {
 			contribution_a: BalanceOf<T>,
 			contribution_b: BalanceOf<T>,
 			lp_id: AssetIdOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin.clone())?;
 			let admin = ensure_signed(origin)?;
 			let pool = Pools::<T>::get(pool_id);
@@ -194,9 +244,9 @@ pub mod pallet {
 			let (lp_amount, constant_k) =
 				DexPricer::initial_pool_values(contribution_a, contribution_b);
 
-			T::Assets::transfer(asset_a_id, &admin, &Self::account_id(), contribution_a, false)?;
-			T::Assets::transfer(asset_b_id, &admin, &Self::account_id(), contribution_b, false)?;
-			T::Assets::mint_into(lp_id, &admin, lp_amount)?;
+			Self::add_to_pot(asset_a_id, &admin, contribution_a)?;
+			Self::add_to_pot(asset_b_id, &admin, contribution_b)?;
+			Self::mint(lp_id, &admin, lp_amount)?;
 
 			Pools::<T>::insert(pool_id, (asset_a_id, asset_b_id, lp_id, constant_k));
 			Self::deposit_event(Event::PoolCreated(asset_a_id, asset_b_id, lp_id));
@@ -207,15 +257,15 @@ pub mod pallet {
 				contribution_b,
 			));
 
-			Ok(())
+			Ok(Pays::No.into())
 		}
 
-		#[pallet::weight(0)]
+		#[pallet::weight((1_000_000, Pays::Yes))]
 		pub fn set_price(
 			origin: OriginFor<T>,
 			asset_id: AssetIdOf<T>,
 			price: BalanceOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let sender = ensure_signed(origin)?;
 			ensure!(PriceOracle::<T>::get(&sender).is_some(), Error::<T>::NotAuthorized);
 
@@ -223,7 +273,7 @@ pub mod pallet {
 			Price::<T>::insert(asset_id, (price, current_block));
 			Self::deposit_event(Event::PriceSet(asset_id, price, current_block));
 
-			Ok(())
+			Ok(Pays::No.into())
 		}
 	}
 }
