@@ -5,8 +5,7 @@ mod dex_pricer;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::dex_pricer::DexPricer;
-
+	use crate::dex_pricer::{DexPricer, TokenPair};
 	use frame_support::{
 		pallet_prelude::*,
 		sp_runtime::traits::AccountIdConversion,
@@ -44,6 +43,8 @@ pub mod pallet {
 		PriceOraclePermissionSet(T::AccountId, bool),
 		// (pool ID, asset A ID, asset B ID)
 		PoolCreated(AssetIdOf<T>, AssetIdOf<T>, AssetIdOf<T>),
+		// (pool ID, From Asset ID, amount)
+		AssetsSwapped(AssetIdOf<T>, AssetIdOf<T>, BalanceOf<T>),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -53,6 +54,9 @@ pub mod pallet {
 		PoolExists,
 		DexNotFound,
 		UnequalPair,
+		UnableToSwap,
+		TokenNotInPool,
+		SwapExceedsFunds,
 	}
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -131,6 +135,76 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::weight(1_000_000)]
+		pub fn swap(
+			origin: OriginFor<T>,
+			pool_id: AssetIdOf<T>,
+			from_asset_id: AssetIdOf<T>,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let result = Pools::<T>::get(pool_id);
+			ensure!(result.is_some(), Error::<T>::DexNotFound);
+
+			// Get the pool data
+			let (asset_a, asset_b, lp, _) = result.unwrap();
+			let fee_numerator = 5u32; // 0.5% -> TODO keep this in storage so each pool can have different fees
+			let fee_denominator = 1000u32;
+			ensure!(
+				from_asset_id == asset_a || from_asset_id == asset_b,
+				Error::<T>::TokenNotInPool,
+			);
+
+			// Calculate the swap amount and pool fee
+			let mut from_asset_amount = TokenPair::A(amount);
+			if asset_b == from_asset_id {
+				from_asset_amount = TokenPair::B(amount);
+			}
+			let total_a = Self::pot(asset_a);
+			let total_b = Self::pot(asset_b);
+			let swap_price_result = DexPricer::to_swap_values(
+				&from_asset_amount,
+				&total_a,
+				&total_b,
+				fee_numerator,
+				fee_denominator,
+			);
+			ensure!(swap_price_result.is_ok(), Error::<T>::UnableToSwap);
+
+			let (other_amount, fee) = swap_price_result.ok().unwrap();
+
+			match from_asset_amount {
+				TokenPair::A(_) => {
+					// Check user balance
+					let user_a_balance = T::Assets::balance(asset_a, &sender);
+					ensure!(user_a_balance >= amount, Error::<T>::InsufficientBalance);
+
+					// Check swap amount against pot balance
+					let pot_b_balance = Self::pot(asset_b);
+					ensure!(pot_b_balance <= other_amount, Error::<T>::SwapExceedsFunds);
+
+					Self::add_to_pot(asset_a, &sender, amount);
+					Self::take_from_pot(asset_b, &sender, other_amount);
+				},
+				TokenPair::B(_) => {
+					// Check user balance
+					let user_b_balance = T::Assets::balance(asset_b, &sender);
+					ensure!(user_b_balance >= amount, Error::<T>::InsufficientBalance);
+
+					// Check swap amount against pot balance
+					let pot_a_balance = Self::pot(asset_a);
+					ensure!(pot_a_balance <= other_amount, Error::<T>::SwapExceedsFunds);
+
+					Self::add_to_pot(asset_b, &sender, amount);
+					Self::take_from_pot(asset_a, &sender, other_amount);
+				},
+			}
+
+			Self::deposit_event(Event::AssetsSwapped(pool_id, from_asset_id, amount));
+
+			Ok(())
+		}
+
 		#[pallet::weight(1_000_000)]
 		pub fn add_liquidity(
 			origin: OriginFor<T>,

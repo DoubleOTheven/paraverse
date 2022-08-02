@@ -1,4 +1,4 @@
-use core::{fmt::Error, ops::Div};
+use core::ops::Div;
 
 use sp_runtime::traits::{IntegerSquareRoot, Saturating};
 use sp_std::ops::Mul;
@@ -73,7 +73,7 @@ impl DexPricer {
 
 	// Returns (amount of tokens for the opposite pair minus the fee, fee)
 	pub fn to_swap_values<T: Saturating + Div<Output = T> + Mul<Output = T> + From<u32> + Copy>(
-		token: TokenPair<T>,
+		token: &TokenPair<T>,
 		total_a: &T,
 		total_b: &T,
 		fee_numerator: u32,
@@ -110,7 +110,7 @@ mod tests {
 		let zero_denominator = 0u32;
 
 		let err = DexPricer::to_swap_values(
-			TokenPair::A(100u32),
+			&TokenPair::A(100u32),
 			&1000u32,
 			&1000u32,
 			2u32,
@@ -131,7 +131,7 @@ mod tests {
 		let fee_denominator = 1000u32;
 
 		let (amount_b, fee) = DexPricer::to_swap_values(
-			TokenPair::A(user_a_balance),
+			&TokenPair::A(user_a_balance),
 			&total_a,
 			&total_b,
 			fee_numerator,
