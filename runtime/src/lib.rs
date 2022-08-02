@@ -316,7 +316,7 @@ parameter_types! {
 impl pallet_nft_maker::Config for Runtime {
 	type Event = Event;
 	type Payment = Assets;
-	type ItemId = Hash;
+	type ItemId = u64;
 	type TokenURILimit = TokenURILimit;
 }
 
