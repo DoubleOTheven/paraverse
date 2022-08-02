@@ -1,4 +1,4 @@
-use core::ops::Div;
+use core::{fmt::Error, ops::Div};
 
 use sp_runtime::traits::{IntegerSquareRoot, Saturating};
 use sp_std::ops::Mul;
@@ -13,6 +13,22 @@ fn add_decimals<T: Saturating + From<u32>>(value: T, decimals: u8) -> T {
 fn remove_decimals<T: Saturating + Div<Output = T> + From<u32>>(value: T, decimals: u8) -> T {
 	let decimal_multiplier = <u32 as Into<T>>::into(10_u32).saturating_pow(decimals.into()).into();
 	value / decimal_multiplier
+}
+
+pub enum TokenPair<T> {
+	A(T),
+	B(T),
+}
+
+#[derive(Debug)]
+pub enum Errors {
+	ZeroDenominator,
+}
+
+impl PartialEq for Errors {
+	fn eq(&self, other: &Self) -> bool {
+		core::mem::discriminant(self) == core::mem::discriminant(other)
+	}
 }
 
 impl DexPricer {
@@ -54,11 +70,79 @@ impl DexPricer {
 	) -> (T, T, u8) {
 		(add_decimals(*total_b, 12) / *total_a, add_decimals(*total_a, 12) / *total_b, 12)
 	}
+
+	// Returns (amount of tokens for the opposite pair minus the fee, fee)
+	pub fn to_swap_values<T: Saturating + Div<Output = T> + Mul<Output = T> + From<u32> + Copy>(
+		token: TokenPair<T>,
+		total_a: &T,
+		total_b: &T,
+		fee_numerator: u32,
+		fee_denominator: u32,
+	) -> Result<(T, T), Errors> {
+		if fee_denominator == 0u32 {
+			return Err(Errors::ZeroDenominator)
+		}
+		let (price_a, price_b, _) = Self::token_prices(total_a, total_b);
+
+		match token {
+			TokenPair::A(amount) => {
+				let fee = amount.saturating_mul(fee_numerator.into()) / fee_denominator.into();
+				let remaining_funds = amount.saturating_sub(fee);
+				let amount_b = remaining_funds.saturating_mul(price_a) / price_b;
+				return Ok((amount_b, fee))
+			},
+			TokenPair::B(amount) => {
+				let fee = amount.saturating_mul(fee_numerator.into()) / fee_denominator.into();
+				let remaining_funds = amount.saturating_sub(fee);
+				let amount_a = remaining_funds.saturating_mul(price_b) / price_a;
+				return Ok((amount_a, fee))
+			},
+		}
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_to_swap_values_returns_error_for_zero_denominator() {
+		let zero_denominator = 0u32;
+
+		let err = DexPricer::to_swap_values(
+			TokenPair::A(100u32),
+			&1000u32,
+			&1000u32,
+			2u32,
+			zero_denominator,
+		)
+		.err()
+		.unwrap();
+
+		assert_eq!(err, Errors::ZeroDenominator);
+	}
+
+	#[test]
+	fn test_to_swap_values() {
+		let user_a_balance: u128 = 500_000_000_000_000;
+		let total_a: u128 = 100_000_000_000_000_000;
+		let total_b: u128 = 200_000_000_000_000_000;
+		let fee_numerator = 5u32; // 0.5 %
+		let fee_denominator = 1000u32;
+
+		let (amount_b, fee) = DexPricer::to_swap_values(
+			TokenPair::A(user_a_balance),
+			&total_a,
+			&total_b,
+			fee_numerator,
+			fee_denominator,
+		)
+		.ok()
+		.unwrap();
+
+		assert_eq!(amount_b, 1990000000000000u128);
+		assert_eq!(fee, 2500000000000u128);
+	}
 
 	#[test]
 	fn test_token_prices() {
