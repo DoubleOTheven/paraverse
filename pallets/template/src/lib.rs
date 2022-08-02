@@ -5,7 +5,7 @@ mod dex_pricer;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::dex_pricer::{DexPricer, TokenPair};
+	use crate::dex_pricer::DexPricer;
 
 	use frame_support::{
 		pallet_prelude::*,
@@ -147,8 +147,7 @@ pub mod pallet {
 			// Calculate the current price of Asset A and Asset B
 			let total_a = Self::pot(asset_a);
 			let total_b = Self::pot(asset_b);
-			let price_of_a = DexPricer::token_price(TokenPair::A, total_a, total_b);
-			let price_of_b = DexPricer::token_price(TokenPair::B, total_a, total_b);
+			let (price_of_a, price_of_b, decimals) = DexPricer::token_prices(&total_a, &total_b);
 
 			// Calculate B amount for Asset A contribution. A/B contributions must be equal value
 			let equal_amount_b = (contribution_a * price_of_a) / price_of_b;

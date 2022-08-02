@@ -5,11 +5,6 @@ use sp_std::ops::Mul;
 
 pub struct DexPricer;
 
-pub enum TokenPair {
-	A,
-	B,
-}
-
 fn add_decimals<T: Saturating + From<u32>>(value: T, decimals: u8) -> T {
 	let decimal_multiplier = <u32 as Into<T>>::into(10_u32).saturating_pow(decimals.into()).into();
 	(value.saturating_mul(decimal_multiplier)).into()
@@ -53,31 +48,30 @@ impl DexPricer {
 		(remove_decimals(amount_a, 12), remove_decimals(amount_b, 12))
 	}
 
-	pub fn token_price<T: Saturating + Div<Output = T> + Mul<Output = T> + From<u32>>(
-		token: TokenPair,
-		total_a: T,
-		total_b: T,
-	) -> T {
-		match token {
-			TokenPair::A => return remove_decimals(add_decimals(total_b, 12) / total_a, 12),
-			TokenPair::B => return remove_decimals(add_decimals(total_a, 12) / total_b, 12),
-		}
+	pub fn token_prices<T: Saturating + Div<Output = T> + Mul<Output = T> + From<u32> + Copy>(
+		total_a: &T,
+		total_b: &T,
+	) -> (T, T, u8) {
+		(add_decimals(*total_b, 12) / *total_a, add_decimals(*total_a, 12) / *total_b, 12)
 	}
-
-	// pub fn token_prices<T: Div<Output = T> + Mul<Output = T> + From<u32>>(
-	// 	total_a: &T,
-	// 	total_b: &T,
-	// ) -> (T, T) {
-	// 	(
-	// 		Self::from_precision(Self::to_precision(total_b) / total_a),
-	// 		Self::from_precision(Self::to_precision(total_a) / total_b),
-	// 	)
-	// }
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_token_prices() {
+		let contribution_a: u128 = 500_000_000_000_000_000;
+		let contribution_b: u128 = 700_000_000_000_000_000;
+
+		let (price_a, price_b, decimals) =
+			DexPricer::token_prices(&contribution_a, &contribution_b);
+
+		assert_eq!(price_a, 1_400_000_000_000);
+		assert_eq!(price_b, 714_285_714_285);
+		assert_eq!(decimals, 12);
+	}
 
 	#[test]
 	fn test_initial_pool_values() {
