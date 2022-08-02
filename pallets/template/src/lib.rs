@@ -147,7 +147,7 @@ pub mod pallet {
 			ensure!(result.is_some(), Error::<T>::DexNotFound);
 
 			// Get the pool data
-			let (asset_a, asset_b, lp, _) = result.unwrap();
+			let (asset_a, asset_b, _, _) = result.unwrap();
 			let fee_numerator = 5u32; // 0.5% -> TODO keep this in storage so each pool can have different fees
 			let fee_denominator = 1000u32;
 			ensure!(
@@ -171,7 +171,7 @@ pub mod pallet {
 			);
 			ensure!(swap_price_result.is_ok(), Error::<T>::UnableToSwap);
 
-			let (other_amount, fee) = swap_price_result.ok().unwrap();
+			let (other_amount, _) = swap_price_result.ok().unwrap();
 
 			match from_asset_amount {
 				TokenPair::A(_) => {
@@ -183,8 +183,8 @@ pub mod pallet {
 					let pot_b_balance = Self::pot(asset_b);
 					ensure!(pot_b_balance <= other_amount, Error::<T>::SwapExceedsFunds);
 
-					Self::add_to_pot(asset_a, &sender, amount);
-					Self::take_from_pot(asset_b, &sender, other_amount);
+					Self::add_to_pot(asset_a, &sender, amount)?;
+					Self::take_from_pot(asset_b, &sender, other_amount)?;
 				},
 				TokenPair::B(_) => {
 					// Check user balance
@@ -195,8 +195,8 @@ pub mod pallet {
 					let pot_a_balance = Self::pot(asset_a);
 					ensure!(pot_a_balance <= other_amount, Error::<T>::SwapExceedsFunds);
 
-					Self::add_to_pot(asset_b, &sender, amount);
-					Self::take_from_pot(asset_a, &sender, other_amount);
+					Self::add_to_pot(asset_b, &sender, amount)?;
+					Self::take_from_pot(asset_a, &sender, other_amount)?;
 				},
 			}
 
@@ -221,7 +221,7 @@ pub mod pallet {
 			// Calculate the current price of Asset A and Asset B
 			let total_a = Self::pot(asset_a);
 			let total_b = Self::pot(asset_b);
-			let (price_of_a, price_of_b, decimals) = DexPricer::token_prices(&total_a, &total_b);
+			let (price_of_a, price_of_b, _) = DexPricer::token_prices(&total_a, &total_b);
 
 			// Calculate B amount for Asset A contribution. A/B contributions must be equal value
 			let equal_amount_b = (contribution_a * price_of_a) / price_of_b;
