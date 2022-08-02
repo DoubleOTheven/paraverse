@@ -44,7 +44,6 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-/// Import the template pallet.
 pub use pallet_nft_maker;
 pub use pallet_template;
 
@@ -310,12 +309,17 @@ impl pallet_template::Config for Runtime {
 	type PalletId = DexPot;
 }
 
-impl pallet_nft_maker::Config for Runtime {
-	type Event = Event;
-	type Assets = Assets;
+parameter_types! {
+  pub const TokenURILimit: u32 = 255u32;
 }
 
-// Create the runtime by composing the FRAME pallets that were previously configured.
+impl pallet_nft_maker::Config for Runtime {
+	type Event = Event;
+	type Payment = Assets;
+	type ItemId = Hash;
+	type TokenURILimit = TokenURILimit;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -337,13 +341,9 @@ construct_runtime!(
 	}
 );
 
-/// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
-/// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-/// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-/// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
