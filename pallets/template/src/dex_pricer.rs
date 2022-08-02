@@ -87,7 +87,7 @@ mod tests {
 		let (lp_shares, constant_k) =
 			DexPricer::initial_pool_values(contribution_a, contribution_b);
 
-		assert_eq!(lp_shares, 7071067811865475);
+		assert_eq!(lp_shares, 7_071_067_811_865_475);
 		assert_eq!(constant_k, 50000000000000000000000000000000);
 	}
 
@@ -95,15 +95,15 @@ mod tests {
 	fn test_to_contribution_lp_amount() {
 		let contribution: u128 = 500_000_000_000_000;
 		let total_a: u128 = 100_000_000_000_000_000;
-		let total_lp = 100_000;
+		let total_lp = 7_071_067_811_865_475;
 
 		let first_result = DexPricer::to_contribution_lp_amount(contribution, total_lp, total_a);
 		let new_total_a = total_a + contribution;
-		let result_with_slippage =
+		let second_result =
 			DexPricer::to_contribution_lp_amount(contribution, total_lp, new_total_a);
 
-		assert_eq!(first_result, 500);
-		assert_eq!(result_with_slippage, 497);
+		assert_eq!(first_result, 3_402_823_669);
+		assert_eq!(second_result, 3_385_894_198);
 	}
 
 	#[test]
