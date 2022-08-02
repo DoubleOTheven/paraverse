@@ -45,6 +45,7 @@ pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
 /// Import the template pallet.
+pub use pallet_nft_maker;
 pub use pallet_template;
 
 /// An index to a block.
@@ -309,6 +310,10 @@ impl pallet_template::Config for Runtime {
 	type PalletId = DexPot;
 }
 
+impl pallet_nft_maker::Config for Runtime {
+	type Event = Event;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -327,6 +332,7 @@ construct_runtime!(
 		Dex: pallet_template,
 		Nicks: pallet_nicks,
 		Assets: pallet_assets,
+		NFTMaker: pallet_nft_maker,
 	}
 );
 
