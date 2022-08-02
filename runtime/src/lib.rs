@@ -312,6 +312,7 @@ impl pallet_template::Config for Runtime {
 
 impl pallet_nft_maker::Config for Runtime {
 	type Event = Event;
+	type Assets = Assets;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
