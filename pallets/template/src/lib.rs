@@ -67,13 +67,18 @@ pub mod pallet {
 	pub(super) type Price<T: Config> =
 		StorageMap<_, Twox128, AssetIdOf<T>, (BalanceOf<T>, T::BlockNumber), OptionQuery>;
 
+	// This is used to store real world values per token. NOTE: in AMMs the swap price is relative
+	// to the other token in the pair. Having a real world price for each token is useful for
+	// artbitrage opportunities.
 	#[pallet::storage]
 	#[pallet::unbounded]
 	pub(super) type PriceOracle<T: Config> =
 		StorageMap<_, Twox128, T::AccountId, bool, OptionQuery>;
 
-	// Use Blake hasher bc/ I plan to allow anyone to create a DEX in the future
-	// Key is the Pool ID in u64, then a tuple of (asset A ID, asset B ID, LP Token ID)
+	// TODO: Change the pool ID from a u64 to a hash of the Pair. This can prevent duplicate pools,
+	// although currently the "root" sets the initial pools Use Blake hasher bc/ I plan to allow
+	// anyone to create a DEX in the future Key is the Pool ID in u64, then a tuple of (asset A ID,
+	// asset B ID, LP Token ID)
 	#[pallet::storage]
 	#[pallet::unbounded]
 	pub(super) type Pools<T: Config> = StorageMap<
