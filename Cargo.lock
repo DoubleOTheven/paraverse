@@ -3777,6 +3777,7 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-nft-maker",
+ "pallet-nft-marketplace",
  "pallet-nicks",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
@@ -4050,6 +4051,21 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-maker"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-nft-marketplace"
 version = "4.0.0-dev"
 dependencies = [
  "frame-benchmarking",

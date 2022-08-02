@@ -45,6 +45,7 @@ pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
 pub use pallet_nft_maker;
+pub use pallet_nft_marketplace;
 pub use pallet_template;
 
 /// An index to a block.
@@ -310,14 +311,27 @@ impl pallet_template::Config for Runtime {
 }
 
 parameter_types! {
-  pub const TokenURILimit: u32 = 255u32;
+	pub const TokenURILimit: u32 = 255u32;
+	pub const NFTMakerAccount: PalletId = PalletId(*b"nftCount");
 }
 
 impl pallet_nft_maker::Config for Runtime {
 	type Event = Event;
-	type Payment = Assets;
 	type ItemId = u64;
 	type TokenURILimit = TokenURILimit;
+	type NFTMakerAccount = NFTMakerAccount;
+}
+
+parameter_types! {
+	pub const MarketplaceAccount: PalletId = PalletId(*b"saleIds!");
+}
+
+impl pallet_nft_marketplace::Config for Runtime {
+	type Event = Event;
+	type Payment = Assets;
+	type ItemId = u64;
+	type SaleId = u64;
+	type MarketplaceAccount = MarketplaceAccount;
 }
 
 construct_runtime!(
@@ -338,6 +352,7 @@ construct_runtime!(
 		Nicks: pallet_nicks,
 		Assets: pallet_assets,
 		NFTMaker: pallet_nft_maker,
+		NFTMarketplace: pallet_nft_marketplace,
 	}
 );
 

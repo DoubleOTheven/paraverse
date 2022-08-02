@@ -1,7 +1,7 @@
 [package]
-name = "pallet-nft-maker"
+name = "pallet-nft-marketplace"
 version = "4.0.0-dev"
-description = "NFT builder"
+description = "Sell your NFTs for any token"
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
 homepage = "https://substrate.io/"
 edition = "2021"

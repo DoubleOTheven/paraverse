@@ -96,6 +96,7 @@ pub mod pallet {
 		/// The account ID of the pot for all trade pairs
 		/// This actually does computation. If you need to keep using it, then make sure you cache
 		/// the value and only call this once.
+		/// TODO -> HOW TO CACHE THIS ???
 		fn account_id() -> T::AccountId {
 			T::PalletId::get().into_account_truncating()
 		}
