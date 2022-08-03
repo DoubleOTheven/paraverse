@@ -105,8 +105,7 @@ pub mod pallet {
 
 			let next_id = Self::increment_ids();
 
-			let sale: SaleItem<T::AccountId, T::SaleId, AssetIdOf<T>, T::ItemId, BalanceOf<T>> =
-				SaleItem { owner: sender.clone(), id: next_id, asset_id, item_id, price };
+			let sale = SaleItem { owner: sender.clone(), id: next_id, asset_id, item_id, price };
 			Sales::<T>::insert(next_id, sale);
 
 			Self::deposit_event(Event::<T>::SaleCreated(next_id, sender));
