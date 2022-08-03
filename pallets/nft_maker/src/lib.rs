@@ -7,6 +7,7 @@ mod types;
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use pallet_custom_traits::{Ownership, Transfer};
 	use sp_runtime::traits::{AccountIdConversion, AtLeast32BitUnsigned};
 
 	use crate::types::ItemDetails;
@@ -47,6 +48,32 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	impl<T: Config> Ownership<T::ItemId, T::AccountId> for Pallet<T> {
+		fn is_owner(id: &T::ItemId, who: &T::AccountId) -> bool {
+			let item = Items::<T>::get(id);
+			if !item.is_some() {
+				return false
+			}
+
+			item.unwrap().owner == *who
+		}
+	}
+
+	impl<T: Config> Transfer<T::ItemId, T::AccountId> for Pallet<T> {
+		fn transfer(id: &T::ItemId, to: &T::AccountId) -> bool {
+			let item = Items::<T>::get(id);
+			if item.is_none() {
+				return false
+			}
+			let mut item = item.unwrap();
+
+			item.owner = to.clone();
+			Items::<T>::insert(id, &item);
+
+			true
+		}
+	}
 
 	impl<T: Config> Pallet<T> {
 		fn account_id() -> T::AccountId {

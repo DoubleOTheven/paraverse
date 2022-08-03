@@ -1,7 +1,7 @@
 [package]
-name = "pallet-nft-marketplace"
+name = "pallet-custom-traits"
 version = "4.0.0-dev"
-description = "Sell your NFTs for any token"
+description = "NFT builder"
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
 homepage = "https://substrate.io/"
 edition = "2021"
@@ -22,7 +22,6 @@ frame-system = { default-features = false, version = "4.0.0-dev", git = "https:/
 frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.26", optional = true }
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.26" }
 sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.26" }
-pallet-custom-traits = { version = "4.0.0-dev", default-features = false, path = "../custom_traits" }
 
 [dev-dependencies]
 sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.26" }
@@ -38,7 +37,6 @@ std = [
 	"frame-benchmarking/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"pallet-custom-traits/std",
 ]
 
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]

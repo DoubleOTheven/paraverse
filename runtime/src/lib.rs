@@ -328,10 +328,11 @@ parameter_types! {
 
 impl pallet_nft_marketplace::Config for Runtime {
 	type Event = Event;
-	type Payment = Assets;
+	type Assets = Assets;
 	type ItemId = u64;
 	type SaleId = u64;
 	type MarketplaceAccount = MarketplaceAccount;
+	type NFT = NFTMaker;
 }
 
 construct_runtime!(
